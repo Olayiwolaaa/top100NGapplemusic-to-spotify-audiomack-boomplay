@@ -1,6 +1,6 @@
 import axios from "axios";
 import cheerio from "cheerio";
-// import { NG_APPLE_MUSIC_URL } from "./config";
+import { NG_APPLE_MUSIC_URL } from "./config";
 
 async function scrapeAppleMusicPlaylist(url: string) {
   try {
@@ -8,7 +8,7 @@ async function scrapeAppleMusicPlaylist(url: string) {
     const $ = cheerio.load(response.data);
 
     // Example: Extract song names
-    const songNames = $(".song-name")
+    const songNames = $(".songs-list-row__by-line")
       .map((index, element) => $(element).text())
       .get();
 
@@ -18,7 +18,6 @@ async function scrapeAppleMusicPlaylist(url: string) {
     throw error;
   }
 }
-
 
 const playlistUrl = "https://music.apple.com/vg/playlist/top-100-nigeria/pl.2fc68f6d68004ae993dadfe99de83877";
 scrapeAppleMusicPlaylist(playlistUrl)
