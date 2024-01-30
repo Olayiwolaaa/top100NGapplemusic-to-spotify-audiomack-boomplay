@@ -35,4 +35,4 @@ def Trending():
     else:
         print(f"Failed to retrieve the page. Status code: {response.status_code}")
 
-Trending()
+# Trending()
