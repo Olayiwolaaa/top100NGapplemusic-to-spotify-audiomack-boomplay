@@ -8,6 +8,7 @@ var cookieParser = require("cookie-parser");
 var client_id = "965df5cc1fdc42ceac8bbb22e34360cf";
 var client_secret = "ee540ed6fc8e4e22ac94696350912149";
 var redirect_uri = "http://localhost:8888/callback";
+// var _access_token;
 
 const generateRandomString = (length) => {
   return crypto.randomBytes(60).toString("hex").slice(0, length);
@@ -24,8 +25,9 @@ app
 
 app.get("/login", function (req, res) {
   var state = generateRandomString(16);
-  var scope = "user-read-private user-read-email";
-
+  res.cookie(stateKey, state);
+  // your application requests authorization
+  var scope = "user-read-private user-read-email playlist-modify-public";
   res.redirect(
     "https://accounts.spotify.com/authorize?" +
       querystring.stringify({
@@ -75,13 +77,12 @@ app.get("/callback", function (req, res) {
       if (!error && response.statusCode === 200) {
         var access_token = body.access_token,
           refresh_token = body.refresh_token;
-        
         var options = {
           url: "https://api.spotify.com/v1/me",
           headers: { Authorization: "Bearer " + access_token },
           json: true,
         };
-        
+
         // use the access token to access the Spotify Web API
         request.get(options, function (error, response, body) {
           console.log(body);
@@ -108,37 +109,45 @@ app.get("/callback", function (req, res) {
 });
 
 app.get("/add_tracks_to_playlist", function (req, res) {
-  var access_token = req.query.access_token; // Get the access token from the query string or from wherever you store it
-
-  // Replace {playlist_id} with the ID of the playlist you want to modify
-  var playlist_id = "0dn4XudR0eemryI4BtIYLz";
-
+  // console.log(req.query.access_token);
+  var playlist_id = "0dn4XudR0eemryI4BtIYLz"; // Replace with the actual playlist ID
   var track_uris = [
-    "spotify:track:59PSEuGHBGLvgZGXC4wpvG", // Example track URIs
+    "spotify:track:59PSEuGHBGLvgZGXC4wpvG",
     "spotify:track:5t5oLw5209yleTnJSqM097",
-  ];
+  ]; // Example track URIs
+  // var authOptions = {
+  //   url: `https://api.spotify.com/v1/playlists/$ƒ{playlist_id}/tracks`,
+  //   headers: { Authorization: "Bearer " + access_token },
+  //   json: true,
+  //   body: {
+  //     uris: track_uris,
+  //   },
+  // };
 
-  var options = {
-    url: `https://api.spotify.com/v1/playlists/${playlist_id}/tracks`,
-    headers: { Authorization:
-        "Basic " +
-        new Buffer.from(client_id + ":" + client_secret).toString("base64")},
-    json: true,
-    body: {
-      uris: track_uris,
+  request.post(
+    "https://api.spotify.com/v1/playlists/$ƒ{playlist_id}/tracks",
+    {
+      headers: {
+        Authorization: "Bearer " + access_token,
+        "Content-Type": "application/json",
+      },
+      json: true,
+
+      body: {
+        uris: track_uris,
+      },
     },
-  };
-  console.log(options);
-  // Add tracks to the playlist
-  request.post(options, function (error, response, body) {
-    if (!error && response.statusCode === 201) {
-      console.log("Tracks added to playlist successfully");
-      res.send("Tracks added to playlist successfully");
-    } else {
-      console.error("Error adding tracks to playlist:", error);
-      res.status(response.statusCode).send("Error adding tracks to playlist");
+    function (error, response, body) {
+      if (!error && response.statusCode === 200) {
+        // var access_token = body.access_token;
+
+        res.send("Tracks added to playlist successfully");
+      } else {
+        console.error("Error adding tracks to playlist:", error);
+        res.status(response.statusCode).send("Error adding tracks to playlist");
+      }
     }
-  });
+  );
 });
 
 app.get("/refresh_token", function (req, res) {
@@ -157,14 +166,20 @@ app.get("/refresh_token", function (req, res) {
     },
     json: true,
   };
+
   request.post(authOptions, function (error, response, body) {
     if (!error && response.statusCode === 200) {
       var access_token = body.access_token,
         refresh_token = body.refresh_token;
+
+      // _access_token = access_token;
+
       res.send({
         access_token: access_token,
         refresh_token: refresh_token,
       });
+    } else {
+      res.status(500).send("Error refreshing token");
     }
   });
 });
