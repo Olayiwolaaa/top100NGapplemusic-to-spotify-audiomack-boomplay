@@ -1,5 +1,4 @@
-const { RateLimiter } = require("limiter");
-const limiter = new RateLimiter(1, "second");
+
 const express = require("express");
 const SpotifyWebApi = require("spotify-web-api-node");
 const fs = require("fs");
@@ -7,24 +6,18 @@ const fs = require("fs");
 
 // Initialize an Express application.
 const app = express();
-// Define the port number on which the server will listen.
 const port = 8888;
 
 // Initialize the Spotify API with credentials from environment variables.
 const spotifyApi = new SpotifyWebApi({
-  clientId: "965df5cc1fdc42ceac8bbb22e34360cf",
-  clientSecret: "ee540ed6fc8e4e22ac94696350912149",
+  clientId: "34c8673e76f545f2be2522fb3a3e7280",
+  clientSecret: "ffe0e782bcfa4e639144452f0f92f48c",
   redirectUri: "http://localhost:8888/callback",
 });
-``
+
 // Route handler for the login endpoint.
 app.get("/login", (req, res) => {
-  // Define the scopes for authorization; these are the permissions we ask from the user.
   const scopes = [
-    "user-read-private",
-    "user-read-email",
-    "user-read-playback-state",
-    "user-modify-playback-state",
     "playlist-modify-public",
   ];
   // Redirect the client to Spotify's authorization page with the defined scopes.
@@ -33,7 +26,6 @@ app.get("/login", (req, res) => {
 
 // Route handler for the callback endpoint after the user has logged in.
 app.get("/callback", (req, res) => {
-  // Extract the error, code, and state from the query parameters.
   const error = req.query.error;
   const code = req.query.code;
 
@@ -43,8 +35,7 @@ app.get("/callback", (req, res) => {
     res.send(`Callback Error: ${error}`);
     return;
   }
-
-  // Exchange the code for an access token and a refresh token.
+  
   spotifyApi
     .authorizationCodeGrant(code)
     .then((data) => {
@@ -74,11 +65,9 @@ app.get("/callback", (req, res) => {
     });
 });
 
-
-app.get("/add_tracks_to_playlist", async (req, res) => {
+app.get("/applemusic_update", async (req, res) => {
   const { q } = req.query;
   const searchSongTitle = JSON.parse(fs.readFileSync("song_names.json"));
-
 
   const searchPromises = [];
   searchSongTitle.forEach((query) => {
@@ -97,6 +86,9 @@ app.get("/add_tracks_to_playlist", async (req, res) => {
       position: 0,
     });
 
+    // Delete the song_names.json file
+    fs.unlinkSync("song_names.json");
+
     res.send("Tracks added to playlist successfully");
   } catch (error) {
     console.error("Error:", error);
@@ -104,7 +96,60 @@ app.get("/add_tracks_to_playlist", async (req, res) => {
   }
 });
 
-// Start the Express server.
+app.get("/create_public_playlist", async (req, res) => {
+  try {
+    // Read song titles and artist names from the JSON file
+    const songData = JSON.parse(fs.readFileSync("song_names.json"));
+
+    const searchPromises = [];
+    songData.forEach(({ title, artist }) => {
+      // Construct the search query with both the song title and artist name
+      const searchQuery = `${title} artist:${artist}`;
+
+      // Push a promise to search for tracks with the constructed query
+      searchPromises.push(
+        spotifyApi.searchTracks(searchQuery).then((searchData) => {
+          if (searchData.body.tracks.items.length > 0) {
+            return searchData.body.tracks.items[0].uri;
+          } else {
+            throw new Error("No tracks found for query: " + searchQuery);
+          }
+        })
+      );
+    });
+
+    const trackUris = await Promise.all(searchPromises);
+
+    // Create a new public playlist with a name
+    const playlistName = "100 Shades of Baddo: Olamide's Greatest Tracks";
+    const playlistDescription =
+      "Enjoy the best of Olamide with this curated playlist.";
+    const createdPlaylist = await spotifyApi.createPlaylist(playlistName, {
+      public: true,
+      description: playlistDescription,
+    });
+
+    // Get the playlist ID
+    const playlistId = createdPlaylist.body.id;
+
+    // Add tracks to the playlist
+    await spotifyApi.addTracksToPlaylist(playlistId, trackUris, {
+      position: 0,
+    });
+
+    // Delete the song_names.json file after adding tracks
+    fs.unlinkSync("song_names.json");
+
+    res.send("Playlist created and tracks added successfully.");
+  } catch (error) {
+    console.error("Error:", error);
+    res
+      .status(500)
+      .send("Error occurred while creating playlist or adding tracks.");
+  }
+});
+
+
 app.listen(port, () => {
   console.log(`Listening at http://localhost:${port}`);
 });
