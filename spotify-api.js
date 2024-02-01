@@ -1,8 +1,6 @@
-
 const express = require("express");
 const SpotifyWebApi = require("spotify-web-api-node");
 const fs = require("fs");
-
 
 // Initialize an Express application.
 const app = express();
@@ -17,9 +15,7 @@ const spotifyApi = new SpotifyWebApi({
 
 // Route handler for the login endpoint.
 app.get("/login", (req, res) => {
-  const scopes = [
-    "playlist-modify-public",
-  ];
+  const scopes = ["playlist-modify-public"];
   // Redirect the client to Spotify's authorization page with the defined scopes.
   res.redirect(spotifyApi.createAuthorizeURL(scopes));
 });
@@ -35,7 +31,7 @@ app.get("/callback", (req, res) => {
     res.send(`Callback Error: ${error}`);
     return;
   }
-  
+
   spotifyApi
     .authorizationCodeGrant(code)
     .then((data) => {
@@ -48,9 +44,7 @@ app.get("/callback", (req, res) => {
       spotifyApi.setRefreshToken(refreshToken);
 
       // Send a success message to the user.
-      res.send(
-        "Login successful!"
-      );
+      res.send("Login successful!");
 
       // Refresh the access token periodically before it expires.
       setInterval(async () => {
@@ -98,13 +92,14 @@ app.get("/applemusic_update", async (req, res) => {
 
 app.get("/create_public_playlist", async (req, res) => {
   try {
-    // Read song titles and artist names from the JSON file
+    // Read song data from the Spotify playlist array object JSON file
     const songData = JSON.parse(fs.readFileSync("song_names.json"));
+    
 
     const searchPromises = [];
-    songData.forEach(({ title, artist }) => {
-      // Construct the search query with both the song title and artist name
-      const searchQuery = `${title} artist:${artist}`;
+    songData.forEach(({ title, album, year }) => {
+      // Construct the search query with the song title, album title, and release year
+      const searchQuery = `${title} album:${album} year:${year}`;
 
       // Push a promise to search for tracks with the constructed query
       searchPromises.push(
@@ -112,18 +107,28 @@ app.get("/create_public_playlist", async (req, res) => {
           if (searchData.body.tracks.items.length > 0) {
             return searchData.body.tracks.items[0].uri;
           } else {
-            throw new Error("No tracks found for query: " + searchQuery);
+            console.log("No tracks found for query: " + searchQuery);
+            return null; // Return null to indicate that no track was found
           }
         })
       );
     });
 
+    // Wait for all promises to resolve
     const trackUris = await Promise.all(searchPromises);
 
-    // Create a new public playlist with a name
-    const playlistName = "100 Shades of Baddo: Olamide's Greatest Tracks";
+    // Filter out null values (tracks that were not found)
+    const validTrackUris = trackUris.filter((uri) => uri !== null);
+
+    // If no valid track URIs were found, send an error response
+    if (validTrackUris.length === 0) {
+      throw new Error("No tracks found for any of the queries.");
+    }
+
+    // Create a new public playlist with a name and description
+    const playlistName = "Naija50Fit";
     const playlistDescription =
-      "Enjoy the best of Olamide with this curated playlist.";
+      "Get pumped up with 50 Nigerian tracks for your workout! From Afrobeat to Afropop, this playlist will keep you moving and motivated. Let the energetic rhythms of Nigerian music power your fitness sessions!";
     const createdPlaylist = await spotifyApi.createPlaylist(playlistName, {
       public: true,
       description: playlistDescription,
@@ -133,12 +138,9 @@ app.get("/create_public_playlist", async (req, res) => {
     const playlistId = createdPlaylist.body.id;
 
     // Add tracks to the playlist
-    await spotifyApi.addTracksToPlaylist(playlistId, trackUris, {
+    await spotifyApi.addTracksToPlaylist(playlistId, validTrackUris, {
       position: 0,
     });
-
-    // Delete the song_names.json file after adding tracks
-    fs.unlinkSync("song_names.json");
 
     res.send("Playlist created and tracks added successfully.");
   } catch (error) {
@@ -148,7 +150,6 @@ app.get("/create_public_playlist", async (req, res) => {
       .send("Error occurred while creating playlist or adding tracks.");
   }
 });
-
 
 app.listen(port, () => {
   console.log(`Listening at http://localhost:${port}`);
