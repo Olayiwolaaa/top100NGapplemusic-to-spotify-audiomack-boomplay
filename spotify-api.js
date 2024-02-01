@@ -16,7 +16,7 @@ const spotifyApi = new SpotifyWebApi({
   clientSecret: "ee540ed6fc8e4e22ac94696350912149",
   redirectUri: "http://localhost:8888/callback",
 });
-
+``
 // Route handler for the login endpoint.
 app.get("/login", (req, res) => {
   // Define the scopes for authorization; these are the permissions we ask from the user.
@@ -56,13 +56,9 @@ app.get("/callback", (req, res) => {
       spotifyApi.setAccessToken(accessToken);
       spotifyApi.setRefreshToken(refreshToken);
 
-      // Logging tokens can be a security risk; this should be avoided in production.
-      console.log("The access token is " + accessToken);
-      console.log("The refresh token is " + refreshToken);
-
       // Send a success message to the user.
       res.send(
-        "Login successful! You can now use the /search and /play endpoints."
+        "Login successful!"
       );
 
       // Refresh the access token periodically before it expires.
@@ -78,29 +74,17 @@ app.get("/callback", (req, res) => {
     });
 });
 
-// Route handler for the search endpoint.
+
 app.get("/add_tracks_to_playlist", async (req, res) => {
   const { q } = req.query;
-  const songNamesArray = JSON.parse(fs.readFileSync("song_names.json"));
+  const searchSongTitle = JSON.parse(fs.readFileSync("song_names.json"));
+
 
   const searchPromises = [];
-  songNamesArray.forEach((query) => {
+  searchSongTitle.forEach((query) => {
     searchPromises.push(
-      new Promise((resolve, reject) => {
-        limiter.removeTokens(1, async (err, remainingRequests) => {
-          if (err) {
-            reject(err);
-            return;
-          }
-
-          try {
-            const searchData = await spotifyApi.searchTracks(query);
-            const trackUri = searchData.body.tracks.items[0].uri;
-            resolve(trackUri);
-          } catch (error) {
-            reject(error);
-          }
-        });
+      spotifyApi.searchTracks(query).then((searchData) => {
+        return searchData.body.tracks.items[0].uri;
       })
     );
   });
