@@ -1,8 +1,8 @@
-const axios = require("axios");
-const cheerio = require("cheerio");
-const fs = require("fs");
-const puppeteer = require("puppeteer");
-const path = require("path");
+const axios = require("axios"),
+  cheerio = require("cheerio"),
+  fs = require("fs"),
+  puppeteer = require("puppeteer"),
+  path = require("path");
 
 function scrapeAppleMusicPlaylist(url) {
   return new Promise(async (resolve, reject) => {
@@ -29,7 +29,7 @@ function scrapeAppleMusicPlaylist(url) {
   });
 }
 
-// Read the JSON file named "Top100"
+// Read the JSON file named "AppleMusicTop100.json"
 const items = require("./AppleMusicTop100.json");
 
 (async () => {

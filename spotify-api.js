@@ -1,6 +1,7 @@
-const express = require("express");
-const SpotifyWebApi = require("spotify-web-api-node");
-const fs = require("fs");
+const express = require("express"),
+  SpotifyWebApi = require("spotify-web-api-node"),
+  fs = require("fs"),
+  path = require("path");
 
 // Initialize an Express application.
 const app = express();
@@ -60,41 +61,108 @@ app.get("/callback", (req, res) => {
 });
 
 app.get("/applemusic_update", async (req, res) => {
-  const { q } = req.query;
-  const searchSongTitle = JSON.parse(fs.readFileSync("song_names.json"));
-
-  const searchPromises = [];
-  searchSongTitle.forEach((query) => {
-    searchPromises.push(
-      spotifyApi.searchTracks(query).then((searchData) => {
-        return searchData.body.tracks.items[0].uri;
-      })
-    );
-  });
-
   try {
-    const playlist_id = "4Hzyms4nPhY1JeVv3gyIyu";
-    const trackUris = await Promise.all(searchPromises);
+    // Get a list of all JSON files in the "Top100" folder
+    const top100Folder = path.join(__dirname, "Top100");
+    const jsonFiles = fs
+      .readdirSync(top100Folder)
+      .filter((file) => file.endsWith(".json"));
 
-    await spotifyApi.addTracksToPlaylist(playlist_id, trackUris, {
-      position: 0,
-    });
+    // Iterate through each JSON file
+    for (const jsonFile of jsonFiles) {
+      try {
+        // Read the JSON file data
+        const jsonData = JSON.parse(
+          fs.readFileSync(path.join(top100Folder, jsonFile))
+        );
 
-    // Delete the song_names.json file
-    fs.unlinkSync("song_names.json");
+        // Create a new playlist on Spotify with the title of the JSON file
+        const playlistName = path.basename(jsonFile, path.extname(jsonFile));
+        const createdPlaylist = await spotifyApi.createPlaylist(playlistName, {
+          public: true,
+          description: `Playlist created from ${jsonFile}`,
+        });
 
-    res.send("Tracks added to playlist successfully");
+        // Initialize search promises array
+        const searchPromises = [];
+
+        // Iterate through each track in the JSON data
+        for (const track of jsonData) {
+          // Construct the search query with the track title and artist
+          const searchQuery = `${track.title} ${track.artist}`;
+
+          // Push a promise to search for tracks with the constructed query
+          searchPromises.push(
+            spotifyApi.searchTracks(searchQuery).then((searchData) => {
+              if (searchData.body.tracks.items.length > 0) {
+                return searchData.body.tracks.items[0].uri;
+              } else {
+                console.log("No tracks found for query: " + searchQuery);
+                return null; // Return null to indicate that no track was found
+              }
+            })
+          );
+        }
+
+        // Wait for all promises to resolve
+        const trackUris = await Promise.all(searchPromises);
+
+        // Filter out null values (tracks that were not found)
+        const validTrackUris = trackUris.filter((uri) => uri !== null);
+
+        // If no valid track URIs were found, send an error response
+        if (validTrackUris.length === 0) {
+          throw new Error("No tracks found for any of the queries.");
+        }
+
+        // Get the playlist ID
+        const playlistId = createdPlaylist.body.id;
+
+        // Add tracks from the JSON file data to the playlist
+        await spotifyApi.addTracksToPlaylist(playlistId, validTrackUris, {
+          position: 0,
+        });
+
+        // Get the image filename corresponding to the playlist title
+        const imageFilename = path.join(
+          __dirname,
+          "Top100",
+          "img",
+          `${playlistName}.jpg`
+        );
+
+        // Set the playlist image from the image file
+        if (fs.existsSync(imageFilename)) {
+          const imageData = fs.readFileSync(imageFilename);
+          await spotifyApi.uploadCustomPlaylistCoverImage(
+            playlistId,
+            imageData
+          );
+        } else {
+          console.warn(`Image file not found for playlist: ${playlistName}`);
+        }
+
+        console.log(
+          `Playlist created and tracks added successfully for: ${playlistName}`
+        );
+      } catch (error) {
+        console.error(`Error processing JSON file: ${jsonFile}`, error);
+      }
+    }
+
+    res.send("Playlists created and tracks added successfully.");
   } catch (error) {
     console.error("Error:", error);
-    res.status(500).send("Error occurred while adding tracks to playlist");
+    res.status(500).send("Error occurred while updating playlists.");
   }
 });
+
+
 
 app.get("/create_public_playlist", async (req, res) => {
   try {
     // Read song data from the Spotify playlist array object JSON file
     const songData = JSON.parse(fs.readFileSync("song_names.json"));
-    
 
     const searchPromises = [];
     songData.forEach(({ title, album, year }) => {
