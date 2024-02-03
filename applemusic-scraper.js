@@ -2,7 +2,8 @@ const axios = require("axios"),
   cheerio = require("cheerio"),
   fs = require("fs"),
   puppeteer = require("puppeteer"),
-  path = require("path");
+  path = require("path"),
+  sharp = require("sharp"); // Import sharp library
 
 function scrapeAppleMusicPlaylist(url) {
   return new Promise(async (resolve, reject) => {
@@ -86,6 +87,17 @@ const items = require("./AppleMusicTop100.json");
         const response = await axios.get(imageUrl, { responseType: "stream" });
         response.data.pipe(writer);
         console.log(`Artwork downloaded: ${imageFilename}`);
+
+        // Compress the downloaded image to 300x300 pixels
+        await sharp(imageFilename)
+          .resize(300, 300)
+          .toFile(imageFilename.replace(".jpg", "_compressed.jpg"));
+        console.log(
+          `Image compressed: ${imageFilename.replace(
+            ".jpg",
+            "_compressed.jpg"
+          )}`
+        );
       } catch (error) {
         console.error(`Error processing item "${title}":`, error);
       }

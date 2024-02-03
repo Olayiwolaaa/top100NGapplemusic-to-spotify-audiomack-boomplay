@@ -240,9 +240,17 @@ app.get("/create_public_playlists", async (req, res) => {
             playlistId,
             base64ImageData
           );
+          
+          // Delete the image file
+          fs.unlinkSync(imageFilename);
+          console.log(`Image file deleted: ${imageFilename}`);
         } else {
           console.warn(`Image file not found for playlist: ${playlistName}`);
         }
+
+        // Delete the JSON file
+        fs.unlinkSync(path.join(playlistFolder, jsonFile));
+        console.log(`JSON file deleted: ${jsonFile}`);
 
         console.log(
           `Playlist created and tracks added successfully for: ${playlistName}`
