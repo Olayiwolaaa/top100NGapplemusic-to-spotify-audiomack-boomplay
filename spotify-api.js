@@ -88,8 +88,8 @@ app.get("/applemusic_update", async (req, res) => {
 
         // Iterate through each track in the JSON data
         for (const track of jsonData) {
-          // Construct the search query with the track title
-          const searchQuery = `${track.title}`;
+          // Construct the search query with the track title and artist
+          const searchQuery = `${track.title} ${track.artist}`;
 
           // Push a promise to search for tracks with the constructed query
           searchPromises.push(
@@ -158,65 +158,90 @@ app.get("/applemusic_update", async (req, res) => {
 });
 
 
-app.get("/create_public_playlist", async (req, res) => {
+
+app.get("/create_public_playlists", async (req, res) => {
   try {
-    // Read song data from the Spotify playlist array object JSON file
-    const songData = JSON.parse(fs.readFileSync("song_names.json"));
+    // Get the list of JSON files in the folder containing playlist data
+    const playlistFolder = path.join(__dirname, "playlist_data");
+    const jsonFiles = fs
+      .readdirSync(playlistFolder)
+      .filter((file) => file.endsWith(".json"));
 
-    const searchPromises = [];
-    songData.forEach(({ title }) => {
-      // Construct the search query with the song title, album title, and release year
-      const searchQuery = `${title}`;
+    // Iterate over each JSON file
+    for (const jsonFile of jsonFiles) {
+      try {
+        // Extract playlist name from the JSON file title
+        const playlistName = path.basename(jsonFile, ".json");
 
-      // Push a promise to search for tracks with the constructed query
-      searchPromises.push(
-        spotifyApi.searchTracks(searchQuery).then((searchData) => {
+        // Read the playlist data from the JSON file
+        const playlistData = JSON.parse(
+          fs.readFileSync(path.join(playlistFolder, jsonFile))
+        );
+
+        // Ensure tracks data is in the expected format (array of strings)
+        if (
+          !Array.isArray(playlistData) ||
+          playlistData.some((track) => typeof track !== "string")
+        ) {
+          throw new Error(`Invalid format for tracks data in ${jsonFile}`);
+        }
+
+        // Create a new public playlist on Spotify
+        const createdPlaylist = await spotifyApi.createPlaylist(playlistName, {
+          public: true,
+          description: `Playlist created from ${jsonFile}`,
+        });
+
+        // Get the playlist ID
+        const playlistId = createdPlaylist.body.id;
+
+        // Initialize an array to store track URIs
+        const trackUris = [];
+
+        // Iterate over each track in the playlist data
+        for (const track of playlistData) {
+          // Construct the search query with the track title
+          const searchQuery = track;
+
+          // Search for the track on Spotify
+          const searchData = await spotifyApi.searchTracks(searchQuery);
+
+          // If track found, add its URI to the trackUris array
           if (searchData.body.tracks.items.length > 0) {
-            return searchData.body.tracks.items[0].uri;
+            trackUris.push(searchData.body.tracks.items[0].uri);
           } else {
             console.log("No tracks found for query: " + searchQuery);
-            return null; // Return null to indicate that no track was found
           }
-        })
-      );
-    });
+        }
 
-    // Wait for all promises to resolve
-    const trackUris = await Promise.all(searchPromises);
+        // If no valid track URIs were found, skip creating the playlist
+        if (trackUris.length === 0) {
+          console.warn(`No valid tracks found for playlist: ${playlistName}`);
+          continue; // Skip to the next playlist
+        }
 
-    // Filter out null values (tracks that were not found)
-    const validTrackUris = trackUris.filter((uri) => uri !== null);
+        // Add tracks to the playlist
+        await spotifyApi.addTracksToPlaylist(playlistId, trackUris, {
+          position: 0,
+        });
 
-    // If no valid track URIs were found, send an error response
-    if (validTrackUris.length === 0) {
-      throw new Error("No tracks found for any of the queries.");
+        console.log(
+          `Playlist created and tracks added successfully for: ${playlistName}`
+        );
+      } catch (error) {
+        console.error(`Error processing JSON file: ${jsonFile}`, error);
+      }
     }
 
-    // Create a new public playlist with a name and description
-    const playlistName = "Naija50Fit";
-    const playlistDescription =
-      "Get pumped up with 50 Nigerian tracks for your workout! From Afrobeat to Afropop, this playlist will keep you moving and motivated. Let the energetic rhythms of Nigerian music power your fitness sessions!";
-    const createdPlaylist = await spotifyApi.createPlaylist(playlistName, {
-      public: true,
-      description: playlistDescription,
-    });
-
-    // Get the playlist ID
-    const playlistId = createdPlaylist.body.id;
-
-    // Add tracks to the playlist
-    await spotifyApi.addTracksToPlaylist(playlistId, validTrackUris, {
-      position: 0,
-    });
-
-    res.send("Playlist created and tracks added successfully.");
+    res.send("All playlists created and tracks added successfully.");
   } catch (error) {
     console.error("Error:", error);
     res
       .status(500)
-      .send("Error occurred while creating playlist or adding tracks.");
+      .send("Error occurred while creating playlists or adding tracks.");
   }
 });
+
 
 app.listen(port, () => {
   console.log(`Listening at http://localhost:${port}`);

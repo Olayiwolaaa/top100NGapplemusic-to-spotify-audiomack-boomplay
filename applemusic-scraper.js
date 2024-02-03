@@ -38,13 +38,13 @@ const items = require("./AppleMusicTop100.json");
 
   try {
     // Create the "Top100" folder if it doesn't exist
-    const top100Folder = path.join(__dirname, "Top100");
-    if (!fs.existsSync(top100Folder)) {
-      fs.mkdirSync(top100Folder);
+    const playlist_dataFolder = path.join(__dirname, "playlist_data");
+    if (!fs.existsSync(playlist_dataFolder)) {
+      fs.mkdirSync(playlist_dataFolder);
     }
 
     // Create the "img" folder if it doesn't exist
-    const imgFolder = path.join(top100Folder, "img");
+    const imgFolder = path.join(playlist_dataFolder, "img");
     if (!fs.existsSync(imgFolder)) {
       fs.mkdirSync(imgFolder);
     }
@@ -57,7 +57,7 @@ const items = require("./AppleMusicTop100.json");
         const songs = await scrapeAppleMusicPlaylist(url);
 
         // Write the scraped data to a JSON file with the name of the title
-        const filename = path.join(top100Folder, `${title}.json`);
+        const filename = path.join(playlist_dataFolder, `${title}.json`);
         fs.writeFileSync(filename, JSON.stringify(songs, null, 2));
         console.log(`Data written to ${filename}`);
 
