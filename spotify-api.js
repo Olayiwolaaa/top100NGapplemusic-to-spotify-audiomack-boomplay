@@ -88,8 +88,8 @@ app.get("/applemusic_update", async (req, res) => {
 
         // Iterate through each track in the JSON data
         for (const track of jsonData) {
-          // Construct the search query with the track title and artist
-          const searchQuery = `${track.title} ${track.artist}`;
+          // Construct the search query with the track title
+          const searchQuery = `${track.title}`;
 
           // Push a promise to search for tracks with the constructed query
           searchPromises.push(
@@ -158,16 +158,15 @@ app.get("/applemusic_update", async (req, res) => {
 });
 
 
-
 app.get("/create_public_playlist", async (req, res) => {
   try {
     // Read song data from the Spotify playlist array object JSON file
     const songData = JSON.parse(fs.readFileSync("song_names.json"));
 
     const searchPromises = [];
-    songData.forEach(({ title, album, year }) => {
+    songData.forEach(({ title }) => {
       // Construct the search query with the song title, album title, and release year
-      const searchQuery = `${title} album:${album} year:${year}`;
+      const searchQuery = `${title}`;
 
       // Push a promise to search for tracks with the constructed query
       searchPromises.push(
