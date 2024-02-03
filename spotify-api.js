@@ -225,6 +225,25 @@ app.get("/create_public_playlists", async (req, res) => {
           position: 0,
         });
 
+        // Get the image filename corresponding to the playlist
+        const imageFilename = path.join(
+          playlistFolder,
+          "img",
+          `${playlistName}.jpg`
+        );
+
+        // Set the playlist image from the image file if it exists
+        if (fs.existsSync(imageFilename)) {
+          const imageData = fs.readFileSync(imageFilename);
+          const base64ImageData = imageData.toString("base64");
+          await spotifyApi.uploadCustomPlaylistCoverImage(
+            playlistId,
+            base64ImageData
+          );
+        } else {
+          console.warn(`Image file not found for playlist: ${playlistName}`);
+        }
+
         console.log(
           `Playlist created and tracks added successfully for: ${playlistName}`
         );
@@ -241,6 +260,8 @@ app.get("/create_public_playlists", async (req, res) => {
       .send("Error occurred while creating playlists or adding tracks.");
   }
 });
+
+
 
 
 app.listen(port, () => {
