@@ -186,11 +186,28 @@ app.get("/create_public_playlists", async (req, res) => {
           throw new Error(`Invalid format for tracks data in ${jsonFile}`);
         }
 
-        // Create a new public playlist on Spotify
-        const createdPlaylist = await spotifyApi.createPlaylist(playlistName, {
-          public: true,
-          description: `Playlist created from ${jsonFile}`,
-        });
+        // Check if playlist already exists
+        let createdPlaylist;
+        try {
+          // Attempt to create the playlist
+          createdPlaylist = await spotifyApi.createPlaylist(playlistName, {
+            public: true,
+            description: `Playlist created from ${jsonFile}`,
+          });
+        } catch (createError) {
+          // If playlist creation fails due to a duplicate name, handle it separately
+          if (
+            createError.statusCode === 400 &&
+            createError.body.error.message.includes("already exists")
+          ) {
+            console.log(
+              `Playlist "${playlistName}" already exists. Updating the playlist instead.`
+            );
+            createdPlaylist = await spotifyApi.getPlaylist(playlistId);
+          } else {
+            throw createError;
+          }
+        }
 
         // Get the playlist ID
         const playlistId = createdPlaylist.body.id;
@@ -214,7 +231,7 @@ app.get("/create_public_playlists", async (req, res) => {
           }
         }
 
-        // If no valid track URIs were found, skip creating the playlist
+        // If no valid track URIs were found, skip to the next playlist
         if (trackUris.length === 0) {
           console.warn(`No valid tracks found for playlist: ${playlistName}`);
           continue; // Skip to the next playlist
@@ -268,6 +285,7 @@ app.get("/create_public_playlists", async (req, res) => {
       .send("Error occurred while creating playlists or adding tracks.");
   }
 });
+
 
 
 
