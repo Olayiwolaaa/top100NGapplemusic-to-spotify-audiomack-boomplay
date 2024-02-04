@@ -1,9 +1,9 @@
-const axios = require("axios"),
-  cheerio = require("cheerio"),
-  fs = require("fs"),
-  puppeteer = require("puppeteer"),
-  path = require("path"),
-  sharp = require("sharp"); // Import sharp library
+const axios = require("axios");
+const cheerio = require("cheerio");
+const fs = require("fs");
+const puppeteer = require("puppeteer");
+const path = require("path");
+const sharp = require("sharp");
 
 function scrapeAppleMusicPlaylist(url) {
   return new Promise(async (resolve, reject) => {
@@ -85,19 +85,29 @@ const items = require("./AppleMusicTop100.json");
 
         // Download the artwork image
         const response = await axios.get(imageUrl, { responseType: "stream" });
-        response.data.pipe(writer);
-        console.log(`Artwork downloaded: ${imageFilename}`);
 
-        // Compress the downloaded image to 300x300 pixels
-        await sharp(imageFilename)
-          .resize(300, 300)
-          .toFile(imageFilename.replace(".jpg", "_compressed.jpg"));
-        console.log(
-          `Image compressed: ${imageFilename.replace(
-            ".jpg",
-            "_compressed.jpg"
-          )}`
-        );
+        response.data.on("error", (err) => {
+          console.error("Error downloading image:", err);
+        });
+
+        response.data.pipe(writer);
+
+        response.data.on("end", async () => {
+          // Image download completed, now resize and compress the image
+          const compressedImageFilename = path.join(
+            imgFolder,
+            `${title}_compressed.jpg`
+          );
+          await sharp(imageFilename)
+            .resize(300, 300)
+            .toFile(compressedImageFilename);
+
+          console.log(`Image compressed: ${compressedImageFilename}`);
+
+          // Delete the original image file
+          fs.unlinkSync(imageFilename);
+          console.log(`Original image deleted: ${imageFilename}`);
+        });
       } catch (error) {
         console.error(`Error processing item "${title}":`, error);
       }

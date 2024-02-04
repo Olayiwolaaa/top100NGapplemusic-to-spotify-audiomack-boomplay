@@ -16,7 +16,7 @@ const spotifyApi = new SpotifyWebApi({
 
 // Route handler for the login endpoint.
 app.get("/login", (req, res) => {
-  const scopes = ["playlist-modify-public"];
+  const scopes = ["playlist-modify-public", "ugc-image-upload"];
   // Redirect the client to Spotify's authorization page with the defined scopes.
   res.redirect(spotifyApi.createAuthorizeURL(scopes));
 });
@@ -229,7 +229,7 @@ app.get("/create_public_playlists", async (req, res) => {
         const imageFilename = path.join(
           playlistFolder,
           "img",
-          `${playlistName}.jpg`
+          `${playlistName}_compressed.jpg`
         );
 
         // Set the playlist image from the image file if it exists
@@ -240,7 +240,7 @@ app.get("/create_public_playlists", async (req, res) => {
             playlistId,
             base64ImageData
           );
-          
+
           // Delete the image file
           fs.unlinkSync(imageFilename);
           console.log(`Image file deleted: ${imageFilename}`);
@@ -268,6 +268,7 @@ app.get("/create_public_playlists", async (req, res) => {
       .send("Error occurred while creating playlists or adding tracks.");
   }
 });
+
 
 
 
