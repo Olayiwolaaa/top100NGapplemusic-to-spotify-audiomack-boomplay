@@ -2,6 +2,8 @@ const express = require("express"),
   SpotifyWebApi = require("spotify-web-api-node"),
   fs = require("fs"),
   path = require("path");
+  const NodeCache = require("node-cache");
+  const cache = new NodeCache();
 
 // Initialize an Express application.
 const app = express();
@@ -157,7 +159,36 @@ app.get("/applemusic_update", async (req, res) => {
   }
 });
 
+const handleRateLimitedRequest = async (apiCall) => {
+  let retries = 0;
+  const maxRetries = 3; // Maximum number of retries
+  let delay = 1000; // Initial delay in milliseconds
 
+  while (retries < maxRetries) {
+    try {
+      return await apiCall(); // Attempt the API call
+    } catch (error) {
+      if (error.statusCode === 429) {
+        // Rate limit error
+        const retryAfter = error.response.headers["retry-after"]; // Get Retry-After header value
+        if (retryAfter) {
+          console.log(`Rate limited. Retrying after ${retryAfter} seconds...`);
+          await new Promise((resolve) =>
+            setTimeout(resolve, retryAfter * 1000)
+          ); // Wait for Retry-After duration
+        } else {
+          console.log(`Rate limited. Retrying after ${delay} milliseconds...`);
+          await new Promise((resolve) => setTimeout(resolve, delay)); // Default delay
+        }
+        delay *= 2; // Exponential backoff
+        retries++;
+      } else {
+        throw error; // Propagate other errors
+      }
+    }
+  }
+  throw new Error("Max retries exceeded.");
+};
 
 app.get("/create_public_playlists", async (req, res) => {
   try {
@@ -187,30 +218,53 @@ app.get("/create_public_playlists", async (req, res) => {
         }
 
         // Check if playlist already exists
-        let createdPlaylist;
-        try {
-          // Attempt to create the playlist
-          createdPlaylist = await spotifyApi.createPlaylist(playlistName, {
-            public: true,
-            description: `Playlist created from ${jsonFile}`,
-          });
-        } catch (createError) {
-          // If playlist creation fails due to a duplicate name, handle it separately
-          if (
-            createError.statusCode === 400 &&
-            createError.body.error.message.includes("already exists")
-          ) {
-            console.log(
-              `Playlist "${playlistName}" already exists. Updating the playlist instead.`
-            );
-            createdPlaylist = await spotifyApi.getPlaylist(playlistId);
-          } else {
-            throw createError;
-          }
+        let playlistId = cache.get(playlistName);
+        if (!playlistId) {
+          const createOrUpdatePlaylist = async () => {
+            try {
+              // Attempt to create the playlist
+              const createdPlaylist = await spotifyApi.createPlaylist(
+                playlistName,
+                {
+                  public: true,
+                  description: `Playlist created from ${jsonFile}`,
+                }
+              );
+              playlistId = createdPlaylist.body.id;
+              cache.set(playlistName, playlistId);
+              return playlistId;
+            } catch (createError) {
+              // If playlist creation fails due to a duplicate name, get the existing playlist instead
+              if (
+                createError.statusCode === 400 &&
+                createError.body.error.message.includes("already exists")
+              ) {
+                console.log(
+                  `Playlist "${playlistName}" already exists. Updating the playlist instead.`
+                );
+                const existingPlaylists = await spotifyApi.getUserPlaylists(
+                  spotifyApi.getAccessToken()
+                );
+                const existingPlaylist = existingPlaylists.body.items.find(
+                  (item) => item.name === playlistName
+                );
+                if (existingPlaylist) {
+                  playlistId = existingPlaylist.id;
+                  cache.set(playlistName, playlistId);
+                  return playlistId;
+                } else {
+                  console.error(
+                    `Existing playlist "${playlistName}" not found.`
+                  );
+                  throw createError;
+                }
+              } else {
+                throw createError;
+              }
+            }
+          };
+          playlistId = await handleRateLimitedRequest(createOrUpdatePlaylist);
         }
-
-        // Get the playlist ID
-        const playlistId = createdPlaylist.body.id;
 
         // Initialize an array to store track URIs
         const trackUris = [];
@@ -285,7 +339,6 @@ app.get("/create_public_playlists", async (req, res) => {
       .send("Error occurred while creating playlists or adding tracks.");
   }
 });
-
 
 
 
