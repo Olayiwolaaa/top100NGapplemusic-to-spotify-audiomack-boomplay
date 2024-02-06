@@ -89,7 +89,7 @@ const items = require("./AppleMusicTop100.json");
         response.data.on("error", (err) => {
           console.error("Error downloading image:", err);
         });
-
+        
         response.data.pipe(writer);
 
         response.data.on("end", async () => {
