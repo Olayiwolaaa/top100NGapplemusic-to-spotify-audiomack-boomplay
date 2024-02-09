@@ -61,7 +61,7 @@ app.get("/callback", (req, res) => {
       res.send("Error getting tokens");
     });
 });
-
+//needs fixing
 app.get("/applemusic_update", async (req, res) => {
   try {
     // Get a list of all JSON files in the "Top100" folder
@@ -190,7 +190,7 @@ const handleRateLimitedRequest = async (apiCall) => {
   throw new Error("Max retries exceeded.");
 };
 
-
+//Create playlist
 app.get("/create_public_playlists", async (req, res) => {
   try {
     // Get the list of JSON files in the folder containing playlist data
