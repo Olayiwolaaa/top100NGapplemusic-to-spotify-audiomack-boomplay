@@ -85,7 +85,7 @@ const items = require("./AppleMusicTop100.json");
 
         // Download the artwork image
         const response = await axios.get(imageUrl, { responseType: "stream" });
-
+        
         response.data.on("error", (err) => {
           console.error("Error downloading image:", err);
         });
